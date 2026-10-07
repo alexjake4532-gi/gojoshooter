@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PIXEL GUN FIGHTER MOBILE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020617;
+            font-family: 'Press Start 2P', monospace, sans-serif;
+            color: #00ff66;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .pixel-btn {
+            border: 4px solid #00ff66;
+            background-color: rgba(0, 20, 10, 0.85);
+            color: #00ff66;
+            box-shadow: 0 6px 0 #003311;
+            transition: transform 0.05s, background-color 0.05s;
+            cursor: pointer;
+            pointer-events: auto !important;
+        }
+        .pixel-btn:active, .btn-pressed {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #003311;
+        }
+        .scanlines {
+            background: linear-gradient(
+                rgba(0, 255, 102, 0) 50%, 
+                rgba(0, 0, 0, 0.35) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(0, 255, 102, 0.05),
+                rgba(0, 0, 0, 0.02),
+                rgba(0, 255, 102, 0.05)
+            );
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="relative w-full h-full overflow-hidden bg-gray-950">
+
+    <!-- Canvas for Game Rendering -->
+    <canvas id="gameCanvas" class="absolute inset-0 w-full h-full z-0"></canvas>
+
+    <!-- CRT Scanlines Overlay -->
+    <div class="absolute inset-0 z-10 scanlines w-full h-full"></div>
+
+    <!-- Portrait Orientation Warning Overlay -->
+    <div id="rotateWarning" class="hidden absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-6 text-center">
+        <div class="text-5xl mb-4 animate-bounce">📱 ↻</div>
+        <h2 class="text-xl text-yellow-400 mb-2">ROTATE YOUR PHONE</h2>
+        <p class="text-xs text-gray-300 mb-6 leading-relaxed">Landscape mode is recommended for the best experience.</p>
+        <button id="continuePortraitBtn" class="pixel-btn bg-red-600 hover:bg-red-500 text-white text-xs px-6 py-4 uppercase">Continue Anyway</button>
+    </div>
+
+    <!-- UI Layer Container -->
+    <div id="uiLayer" class="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-3 sm:p-4">
+        
+        <!-- Top HUD -->
+        <div id="topHud" class="hidden flex justify-between items-start w-full text-xs">
+            <!-- HP & Armor -->
+            <div class="flex flex-col gap-1 bg-black/70 p-2 rounded border border-gray-700">
+                <div class="flex items-center gap-2">
+                    <span class="text-red-500">❤️</span>
+                    <div class="w-24 sm:w-32 bg-gray-800 h-3 rounded overflow-hidden border border-gray-600">
+                        <div id="hpBar" class="bg-red-500 h-full w-full transition-all duration-200"></div>
+                    </div>
+                    <span id="hpText" class="text-[10px] w-10 text-right">100</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-blue-400">🛡️</span>
+                    <div class="w-24 sm:w-32 bg-gray-800 h-3 rounded overflow-hidden border border-gray-600">
+                        <div id="armorBar" class="bg-blue-500 h-full w-50 transition-all duration-200"></div>
+                    </div>
+                    <span id="armorText" class="text-[10px] w-10 text-right">50</span>
+                </div>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-yellow-400">⚡</span>
+                    <div class="w-24 sm:w-32 bg-gray-800 h-2 rounded overflow-hidden border border-gray-600">
+                        <div id="staminaBar" class="bg-yellow-400 h-full w-full transition-all duration-100"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wave & Boss Info (Top Center) -->
+            <div class="flex flex-col items-center">
+                <div id="waveDisplay" class="bg-black/70 px-3 py-1 rounded border border-yellow-500/50 text-yellow-400 text-sm tracking-wider">
+                    WAVE 01
+                </div>
+                <div id="bossHpContainer" class="hidden mt-2 flex flex-col items-center">
+                    <span id="bossNameText" class="text-[10px] text-cyan-400 mb-1">GOJO SORCERER BOSS</span>
+                    <div class="w-48 sm:w-64 bg-gray-900 h-4 rounded border border-cyan-500 overflow-hidden">
+                        <div id="bossHpBar" class="bg-cyan-500 h-full w-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Score & Pause (Top Right) -->
+            <div class="flex items-center gap-3">
+                <div class="flex flex-col items-end bg-black/70 p-2 rounded border border-gray-700">
+                    <span class="text-[9px] text-gray-400">SCORE</span>
+                    <span id="scoreText" class="text-yellow-300 text-sm">000000</span>
+                    <span id="comboText" class="text-[10px] text-orange-400 hidden mt-1">COMBO x2</span>
+                </div>
+                <button id="pauseBtn" class="pixel-btn pointer-events-auto bg-gray-800 hover:bg-gray-700 w-10 h-10 flex items-center justify-center text-sm rounded">
+                    ⏸
+                </button>
+            </div>
+        </div>
+
+        <!-- Center Floating Alerts -->
+        <div id="centerAlertContainer" class="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none">
+            <div id="announcementText" class="text-yellow-300 text-base sm:text-xl font-bold tracking-widest drop-shadow-[0_3px_10px_rgba(0,0,0,0.9)] text-center transition-all duration-300 scale-0"></div>
+        </div>
+
+        <!-- Bottom HUD & Mobile Controls -->
+        <div id="gameControls" class="hidden justify-between items-end w-full pb-2 pointer-events-auto">
+            
+            <!-- Left Thumb Area: Joystick -->
+            <div id="joystickZone" class="relative w-36 h-36 sm:w-44 sm:h-44 pointer-events-auto flex items-center justify-center">
+                <div id="joystickBase" class="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-cyan-950/40 border-2 border-cyan-500/40 flex items-center justify-center">
+                    <div id="joystickStick" class="absolute w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-cyan-400/40 border-2 border-cyan-300 shadow-md"></div>
+                </div>
+            </div>
+
+            <!-- Bottom Center Weapon Status -->
+            <div id="weaponHud" class="bg-black/80 px-3 py-2 rounded border border-cyan-500/50 flex flex-col items-center pointer-events-auto mb-2">
+                <div class="flex items-center gap-2">
+                    <span id="weaponNameText" class="text-xs text-cyan-400 uppercase">HACKER GAMER RGB</span>
+                    <button id="reloadBtn" class="pixel-btn bg-blue-700 hover:bg-blue-600 text-[9px] px-2 py-1 rounded text-white pointer-events-auto">RELOAD</button>
+                </div>
+                <div class="text-xs text-gray-300 mt-1 flex items-center gap-1">
+                    <span id="ammoCountText">100 / 100</span>
+                </div>
+                <div id="reloadBarContainer" class="w-20 bg-gray-800 h-1.5 mt-1 rounded overflow-hidden hidden">
+                    <div id="reloadBar" class="bg-blue-400 h-full w-0"></div>
+                </div>
+            </div>
+
+            <!-- Right Thumb Area: Action Buttons -->
+            <div id="actionButtonsZone" class="relative w-48 h-48 sm:w-56 sm:h-56 pointer-events-auto flex items-center justify-center">
+                <button id="shootBtn" class="pixel-btn absolute top-0 left-1/2 -translate-x-1/2 w-16 h-16 sm:w-20 sm:h-20 bg-red-600/90 hover:bg-red-500 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white shadow-lg active:scale-95 pointer-events-auto">
+                    🔫<span class="text-[8px] mt-0.5">SHOOT</span>
+                </button>
+                <button id="jumpBtn" class="pixel-btn absolute top-1/2 -translate-y-1/2 left-0 w-14 h-14 sm:w-18 sm:h-18 bg-blue-600/90 hover:bg-blue-500 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white shadow-lg active:scale-95 pointer-events-auto">
+                    ⬆️<span class="text-[8px] mt-0.5">JUMP</span>
+                </button>
+                <button id="dashBtn" class="pixel-btn absolute top-1/2 -translate-y-1/2 right-0 w-14 h-14 sm:w-18 sm:h-18 bg-yellow-600/90 hover:bg-yellow-500 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white shadow-lg active:scale-95 pointer-events-auto">
+                    💨<span class="text-[8px] mt-0.5">DASH</span>
+                </button>
+                <button id="meleeBtn" class="pixel-btn absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-16 sm:w-20 sm:h-20 bg-orange-600/90 hover:bg-orange-500 rounded-full flex flex-col items-center justify-center text-[10px] font-bold text-white shadow-lg active:scale-95 pointer-events-auto">
+                    ⚔️<span class="text-[8px] mt-0.5">MELEE</span>
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Main Menu Overlay -->
+    <div id="mainMenu" class="absolute inset-0 z-30 bg-gray-950/95 flex flex-col items-center justify-center p-4">
+        <div class="text-center mb-6">
+            <h1 class="text-xl sm:text-3xl text-cyan-400 font-extrabold tracking-widest drop-shadow-[0_4px_0_#000] mb-2">PIXEL GUN</h1>
+            <h2 class="text-lg sm:text-2xl text-yellow-400 font-bold tracking-widest drop-shadow-[0_3px_0_#000]">FIGHTER MOBILE</h2>
+            <p class="text-[9px] text-gray-400 mt-2">CYBER HACKER ARENA • GOJO EDITION • SURVIVE</p>
+        </div>
+
+        <div class="flex flex-col gap-3 w-64 max-w-full">
+            <button id="menuPlayBtn" class="pixel-btn bg-cyan-600 hover:bg-cyan-500 text-white text-xs py-3 px-4 uppercase text-center font-bold">PLAY SURVIVAL</button>
+            <button id="menuWeaponsBtn" class="pixel-btn bg-blue-600 hover:bg-blue-500 text-white text-xs py-3 px-4 uppercase text-center font-bold">WEAPONS</button>
+            <button id="menuSettingsBtn" class="pixel-btn bg-gray-700 hover:bg-gray-600 text-white text-xs py-3 px-4 uppercase text-center font-bold">SETTINGS</button>
+            <button id="menuHelpBtn" class="pixel-btn bg-gray-800 hover:bg-gray-700 text-white text-xs py-3 px-4 uppercase text-center font-bold">HOW TO PLAY</button>
+        </div>
+        <div class="mt-6 text-[9px] text-gray-500">Coins: <span id="menuCoinsText" class="text-yellow-400">0</span> | Best Score: <span id="menuBestScoreText" class="text-yellow-400">0</span></div>
+    </div>
+
+    <!-- Weapons Select Modal -->
+    <div id="weaponsModal" class="hidden absolute inset-0 z-40 bg-gray-950/95 flex flex-col items-center justify-center p-4">
+        <h2 class="text-base text-yellow-400 mb-4 uppercase">SELECT WEAPON</h2>
+        <div id="weaponsListContainer" class="flex flex-col gap-3 w-80 max-w-full max-h-[60vh] overflow-y-auto p-2"></div>
+        <button id="closeWeaponsBtn" class="pixel-btn bg-gray-700 hover:bg-gray-600 text-white text-xs py-2 px-6 mt-4 uppercase">BACK</button>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="hidden absolute inset-0 z-40 bg-gray-950/95 flex flex-col items-center justify-center p-4">
+        <h2 class="text-base text-yellow-400 mb-4 uppercase">SETTINGS</h2>
+        <div class="flex flex-col gap-3 w-80 max-w-full text-xs bg-gray-900 p-4 rounded border border-gray-700">
+            <div class="flex justify-between items-center">
+                <span>SOUND</span>
+                <button id="settingSound" class="pixel-btn bg-green-600 px-3 py-1 text-[10px]">ON</button>
+            </div>
+            <div class="flex justify-between items-center">
+                <span>MUSIC</span>
+                <button id="settingMusic" class="pixel-btn bg-green-600 px-3 py-1 text-[10px]">ON</button>
+            </div>
+            <div class="flex justify-between items-center">
+                <span>VIBRATION</span>
+                <button id="settingVibration" class="pixel-btn bg-green-600 px-3 py-1 text-[10px]">ON</button>
+            </div>
+            <div class="flex justify-between items-center">
+                <span>SCREEN SHAKE</span>
+                <button id="settingShake" class="pixel-btn bg-green-600 px-3 py-1 text-[10px]">ON</button>
+            </div>
+            <div class="flex justify-between items-center">
+                <span>AUTO RELOAD</span>
+                <button id="settingAutoReload" class="pixel-btn bg-green-600 px-3 py-1 text-[10px]">ON</button>
+            </div>
+            <div class="flex justify-between items-center">
+                <span>AIM ASSIST</span>
+                <button id="settingAimAssist" class="pixel-btn bg-blue-600 px-3 py-1 text-[10px]">MEDIUM</button>
+            </div>
+        </div>
+        <button id="closeSettingsBtn" class="pixel-btn bg-cyan-600 hover:bg-cyan-500 text-white text-xs py-2 px-6 mt-4 uppercase">SAVE & CLOSE</button>
+    </div>
+
+    <!-- How To Play Modal -->
+    <div id="helpModal" class="hidden absolute inset-0 z-40 bg-gray-950/95 flex flex-col items-center justify-center p-4">
+        <h2 class="text-base text-yellow-400 mb-3 uppercase">HOW TO PLAY</h2>
+        <div class="flex flex-col gap-2 w-88 max-w-full text-[10px] text-gray-300 bg-gray-900 p-4 rounded border border-gray-700 leading-relaxed">
+            <p>🕹️ <b class="text-white">LEFT JOYSTICK:</b> Move left/right, crouch.</p>
+            <p>🎯 <b class="text-white">RIGHT DRAG:</b> Drag finger on right screen to aim precisely.</p>
+            <p>🔫 <b class="text-white">SHOOT:</b> Tap or hold action button to fire laser weapon.</p>
+            <p>⬆️ <b class="text-white">JUMP:</b> Tap jump to leap across hacker barriers.</p>
+            <p>💨 <b class="text-white">DASH:</b> Rapidly dodge through cyber security enemies.</p>
+            <p>⚔️ <b class="text-white">MELEE:</b> Punch nearby enemies with cursed energy.</p>
+        </div>
+        <button id="closeHelpBtn" class="pixel-btn bg-gray-700 hover:bg-gray-600 text-white text-xs py-2 px-6 mt-4 uppercase">BACK</button>
+    </div>
+
+    <!-- Pause Menu Modal -->
+    <div id="pauseModal" class="hidden absolute inset-0 z-40 bg-gray-950/90 flex flex-col items-center justify-center p-4">
+        <h2 class="text-lg text-yellow-400 mb-6 uppercase tracking-widest">PAUSED</h2>
+        <div class="flex flex-col gap-3 w-64 max-w-full">
+            <button id="resumeBtn" class="pixel-btn bg-green-600 hover:bg-green-500 text-white text-xs py-3 uppercase font-bold">RESUME</button>
+            <button id="restartBtn" class="pixel-btn bg-yellow-600 hover:bg-yellow-500 text-white text-xs py-3 uppercase font-bold">RESTART</button>
+            <button id="pauseSettingsBtn" class="pixel-btn bg-gray-700 hover:bg-gray-600 text-white text-xs py-3 uppercase font-bold">SETTINGS</button>
+            <button id="quitBtn" class="pixel-btn bg-red-600 hover:bg-red-500 text-white text-xs py-3 uppercase font-bold">MAIN MENU</button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameOverModal" class="hidden absolute inset-0 z-40 bg-gray-950/95 flex flex-col items-center justify-center p-4">
+        <h2 class="text-xl text-red-500 font-bold mb-4 uppercase tracking-widest animate-pulse">GAME OVER</h2>
+        <div class="flex flex-col gap-2 w-72 max-w-full bg-gray-900 p-4 rounded border border-gray-700 text-xs mb-6">
+            <div class="flex justify-between"><span>SCORE</span> <span id="goScoreText" class="text-yellow-400">0</span></div>
+            <div class="flex justify-between"><span>WAVE REACHED</span> <span id="goWaveText" class="text-yellow-400">1</span></div>
+            <div class="flex justify-between"><span>TOTAL KILLS</span> <span id="goKillsText" class="text-yellow-400">0</span></div>
+            <div class="flex justify-between"><span>BEST SCORE</span> <span id="goBestText" class="text-yellow-400">0</span></div>
+            <div class="flex justify-between"><span>COINS EARNED</span> <span id="goCoinsText" class="text-yellow-400">+0</span></div>
+        </div>
+        <div class="flex flex-col gap-3 w-64 max-w-full">
+            <button id="playAgainBtn" class="pixel-btn bg-red-600 hover:bg-red-500 text-white text-xs py-3 uppercase font-bold">PLAY AGAIN</button>
+            <button id="goMenuBtn" class="pixel-btn bg-gray-700 hover:bg-gray-600 text-white text-xs py-3 uppercase font-bold">MAIN MENU</button>
+        </div>
+    </div>
+
+    <script>
+        class AudioManager {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playLaser() {
+                if (!this.enabled) return;
+                this.init();
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.exponentialRampToValueAtTime(150, t + 0.12);
+                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
+                osc.start(t);
+                osc.stop(t + 0.12);
+            }
+            playHit() {
+                if (!this.enabled) return;
+                this.init();
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, t);
+                osc.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+                gain.gain.setValueAtTime(0.3, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.1);
+            }
+            playJump() {
+                if (!this.enabled) return;
+                this.init();
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(350, t + 0.15);
+                gain.gain.setValueAtTime(0.15, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.15);
+            }
+            playDash() {
+                if (!this.enabled) return;
+                this.init();
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(350, t);
+                osc.frequency.exponentialRampToValueAtTime(80, t + 0.2);
+                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.2);
+            }
+            playExplosion() {
+                if (!this.enabled) return;
+                this.init();
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, t);
+                osc.frequency.exponentialRampToValueAtTime(20, t + 0.4);
+                gain.gain.setValueAtTime(0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.4);
+            }
+        }
+
+        class StorageManager {
+            constructor() {
+                this.data = JSON.parse(localStorage.getItem('pixel_gun_fighter_save') || JSON.stringify({
+                    bestScore: 0,
+                    highestWave: 1,
+                    totalKills: 0,
+                    coins: 0,
+                    selectedWeapon: 'HACKER_GAMER',
+                    unlockedWeapons: ['PISTOL', 'SMG', 'HACKER_GAMER', 'LASER'],
+                    settings: {
+                        sound: true,
+                        music: true,
+                        vibration: true,
+                        shake: true,
+                        autoReload: true,
+                        aimAssist: 'MEDIUM'
+                    }
+                }));
+            }
+            save() {
+                localStorage.setItem('pixel_gun_fighter_save', JSON.stringify(this.data));
+            }
+            get(key) { return this.data[key]; }
+            set(key, val) { this.data[key] = val; this.save(); }
+        }
+
+        const WEAPONS_DB = {
+            PISTOL: { name: 'PISTOL', damage: 30, mag: 15, rate: 350, auto: false, speed: 14, cost: 0 },
+            SMG: { name: 'CYBER SMG', damage: 18, mag: 40, rate: 80, auto: true, speed: 16, cost: 300 },
+            HACKER_GAMER: { name: 'HACKER GAMER RGB', damage: 65, mag: 120, rate: 40, auto: true, speed: 24, isHackerGamer: true, cost: 0 },
+            LASER: { name: 'GOJO CURSED LASER', damage: 100, mag: 40, rate: 70, auto: true, speed: 30, isLaser: true, cost: 1000 }
+        };
+
+        class Camera {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+                this.shakeTimer = 0;
+                this.shakeIntensity = 0;
+            }
+            shake(intensity = 6, duration = 15) {
+                this.shakeIntensity = intensity;
+                this.shakeTimer = duration;
+            }
+            update(targetX, targetY, mapWidth, mapHeight, screenWidth, screenHeight) {
+                let destX = targetX - screenWidth / 2;
+                let destY = targetY - screenHeight / 2;
+                destX = Math.max(0, Math.min(destX, mapWidth - screenWidth));
+                destY = Math.max(0, Math.min(destY, mapHeight - screenHeight));
+                this.x += (destX - this.x) * 0.1;
+                this.y += (destY - this.y) * 0.1;
+                if (this.shakeTimer > 0) {
+                    this.shakeTimer--;
+                    this.x += (Math.random() - 0.5) * this.shakeIntensity;
+                    this.y += (Math.random() - 0.5) * this.shakeIntensity;
+                }
+            }
+        }
+
+        class Bullet {
+            constructor(x, y, angle, damage, speed, isEnemy = false, isLaser = false, isHackerGamer = false) {
+                this.x = x; this.y = y; this.angle = angle;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.damage = damage;
+                this.isEnemy = isEnemy;
+                this.active = true;
+                this.radius = isLaser ? 3 : (isHackerGamer ? 6 : 3);
+                this.length = isLaser ? 40 : (isHackerGamer ? 25 : 0);
+                this.isLaser = isLaser;
+                this.isHackerGamer = isHackerGamer;
+            }
+            update(mapW, mapH) {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > mapW || this.y < 0 || this.y > mapH) {
+                    this.active = false;
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                if (this.isLaser) {
+                    ctx.strokeStyle = '#00ffff';
+                    ctx.shadowColor = '#00ffff';
+                    ctx.shadowBlur = 10;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x - Math.cos(this.angle) * this.length, this.y - Math.sin(this.angle) * this.length);
+                    ctx.stroke();
+                } else if (this.isHackerGamer) {
+                    const colors = ['#ff0055', '#00ffcc', '#cc00ff', '#00ff66', '#ffff00'];
+                    ctx.fillStyle = colors[Math.floor(Date.now() / 40) % colors.length];
+                    ctx.shadowColor = ctx.fillStyle;
+                    ctx.shadowBlur = 8;
+                    ctx.fillRect(this.x - 10, this.y - 4, 20, 8);
+                } else {
+                    ctx.fillStyle = this.isEnemy ? '#ef4444' : '#00ff66';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        class Player {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.w = 20; this.h = 32;
+                this.vx = 0; this.vy = 0;
+                this.speed = 4.0;
+                this.jumpForce = -10.5;
+                this.gravity = 0.42;
+                this.grounded = false;
+                this.crouching = false;
+                this.facing = 1;
+                this.hp = 100; this.maxHp = 100;
+                this.armor = 50; this.maxArmor = 50;
+                this.stamina = 100;
+                this.currentWeaponKey = 'HACKER_GAMER';
+                this.weaponData = { ...WEAPONS_DB.HACKER_GAMER };
+                this.ammo = this.weaponData.mag;
+                this.reloading = false;
+                this.reloadTimer = 0;
+                this.shootCooldown = 0;
+                this.isDashing = false;
+                this.dashTimer = 0;
+                this.dashCooldown = 0;
+                this.invulnerableTimer = 0;
+                this.aimAngle = 0;
+            }
+            update(input, platforms, mapW, mapH) {
+                if (this.stamina < 100 && !this.isDashing) {
+                    this.stamina = Math.min(100, this.stamina + 0.8);
+                }
+                if (this.invulnerableTimer > 0) this.invulnerableTimer--;
+                if (this.shootCooldown > 0) this.shootCooldown--;
+                if (this.isDashing) {
+                    this.dashTimer--;
+                    this.vx = this.facing * 14;
+                    this.vy = 0;
+                    if (this.dashTimer <= 0) this.isDashing = false;
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    return;
+                }
+                if (this.dashCooldown > 0) this.dashCooldown--;
+                if (this.reloading) {
+                    this.reloadTimer--;
+                    if (this.reloadTimer <= 0) {
+                        this.ammo = this.weaponData.mag;
+                        this.reloading = false;
+                    }
+                }
+
+                let moveX = input.joystick.x;
+                let moveY = input.joystick.y;
+                if (Math.abs(moveX) > 0.1) {
+                    this.vx = moveX * this.speed;
+                    this.facing = moveX > 0 ? 1 : -1;
+                } else {
+                    this.vx = 0;
+                }
+
+                this.crouching = (moveY > 0.6 && this.grounded);
+                this.h = this.crouching ? 20 : 32;
+
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                this.grounded = false;
+                for (let p of platforms) {
+                    if (this.x + this.w > p.x && this.x < p.x + p.w &&
+                        this.y + this.h > p.y && this.y < p.y + p.h) {
+                        if (this.vy > 0 && this.y + this.h - this.vy <= p.y + 10) {
+                            this.y = p.y - this.h;
+                            this.vy = 0;
+                            this.grounded = true;
+                        }
+                    }
+                }
+
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.w > mapW) this.x = mapW - this.w;
+                if (this.y > mapH) this.hp = 0;
+            }
+            dash() {
+                if (this.dashCooldown === 0 && this.stamina >= 30 && !this.isDashing) {
+                    this.isDashing = true;
+                    this.dashTimer = 14;
+                    this.dashCooldown = 35;
+                    this.stamina -= 30;
+                    this.invulnerableTimer = 20;
+                    return true;
+                }
+                return false;
+            }
+            jump() {
+                if (this.grounded && !this.crouching) {
+                    this.vy = this.jumpForce;
+                    this.grounded = false;
+                    return true;
+                }
+                return false;
+            }
+            startReload() {
+                if (!this.reloading && this.ammo < this.weaponData.mag) {
+                    this.reloading = true;
+                    this.reloadTimer = 40;
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                if (this.invulnerableTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) {
+                    ctx.globalAlpha = 0.5;
+                }
+                const px = Math.floor(this.x);
+                const py = Math.floor(this.y);
+
+                // Gojo Cursed Energy Aura
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.35)';
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 12;
+                ctx.fillRect(px - 4, py - 6, this.w + 8, this.h + 10);
+
+                // Gojo Spiky White Hair
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(px + 1, py - 8, this.w - 2, 8);
+                ctx.fillRect(px - 1, py - 6, 4, 6);
+                ctx.fillRect(px + this.w - 3, py - 6, 4, 6);
+
+                // Blindfold / Face
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(px + 3, py + 1, 14, 4);
+
+                // Gojo Dark Combat Jacket
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(px + 2, py + 5, 16, 14);
+
+                // White Trousers / Pants
+                ctx.fillStyle = '#f8fafc';
+                if (this.h === 20) {
+                    ctx.fillRect(px + 2, py + 16, 16, 4);
+                } else {
+                    ctx.fillRect(px + 3, py + 19, 5, 13);
+                    ctx.fillRect(px + 12, py + 19, 5, 13);
+                }
+
+                // Cyber Weapon / Laser Rifle
+                ctx.save();
+                ctx.translate(px + 10, py + 12);
+                ctx.rotate(this.aimAngle);
+                const rgbColors = ['#ff0055', '#00ffff', '#cc00ff', '#00ff66'];
+                ctx.fillStyle = rgbColors[Math.floor(Date.now() / 60) % rgbColors.length];
+                ctx.fillRect(0, -4, 22, 6);
+                ctx.restore();
+
+                ctx.restore();
+            }
+        }
+
+        class Enemy {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type;
+                this.setupStats();
+            }
+            setupStats() {
+                switch(this.type) {
+                    case 'SOLDIER':
+                        this.w = 18; this.h = 30; this.hp = 50; this.maxHp = 50;
+                        this.speed = 1.6; this.damage = 12; this.range = 280; this.scoreVal = 100;
+                        this.color = '#16a34a'; break;
+                    case 'RUNNER':
+                        this.w = 16; this.h = 24; this.hp = 30; this.maxHp = 30;
+                        this.speed = 2.8; this.damage = 15; this.range = 50; this.scoreVal = 150;
+                        this.color = '#dc2626'; break;
+                    case 'BOSS':
+                        this.w = 40; this.h = 56; this.hp = 1500; this.maxHp = 1500;
+                        this.speed = 1.8; this.damage = 25; this.range = 400; this.scoreVal = 3000;
+                        this.color = '#00ffff'; break;
+                    default:
+                        this.w = 18; this.h = 30; this.hp = 40; this.maxHp = 40;
+                        this.speed = 1.5; this.damage = 10; this.range = 250; this.scoreVal = 100;
+                        this.color = '#ca8a04'; break;
+                }
+                this.vx = 0; this.vy = 0; this.gravity = 0.42;
+                this.shootCooldown = 0; this.facing = 1; this.flashTimer = 0;
+            }
+            update(player, platforms, mapW, mapH, bullets) {
+                if (this.flashTimer > 0) this.flashTimer--;
+                let dx = player.x - this.x;
+                let dy = player.y - this.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                this.facing = dx > 0 ? 1 : -1;
+
+                this.vx = this.facing * this.speed;
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                for (let p of platforms) {
+                    if (this.x + this.w > p.x && this.x < p.x + p.w &&
+                        this.y + this.h > p.y && this.y < p.y + p.h) {
+                        if (this.vy > 0 && this.y + this.h - this.vy <= p.y + 10) {
+                            this.y = p.y - this.h;
+                            this.vy = 0;
+                        }
+                    }
+                }
+
+                if (dist < this.range) {
+                    if (this.shootCooldown > 0) {
+                        this.shootCooldown--;
+                    } else {
+                        this.shootCooldown = this.type === 'BOSS' ? 35 : 75;
+                        let angle = Math.atan2(dy, dx);
+                        bullets.push(new Bullet(this.x + this.w/2, this.y + this.h/2, angle, this.damage, 8, true, this.type === 'BOSS'));
+                    }
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                let px = Math.floor(this.x);
+                let py = Math.floor(this.y);
+                if (this.type === 'BOSS') {
+                    ctx.shadowColor = '#00ffff';
+                    ctx.shadowBlur = 15;
+                }
+                ctx.fillStyle = this.flashTimer > 0 ? '#ffffff' : this.color;
+                ctx.fillRect(px, py, this.w, this.h);
+                ctx.restore();
+            }
+        }
+
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.audio = new AudioManager();
+                this.storage = new StorageManager();
+
+                this.internalW = 480;
+                this.internalH = 270;
+                this.state = 'MENU';
+                this.score = 0;
+                this.wave = 1;
+                this.kills = 0;
+                this.coinsEarned = 0;
+                this.combo = 0;
+
+                this.mapW = 1600;
+                this.mapH = 540;
+
+                this.platforms = [];
+                this.enemies = [];
+                this.bullets = [];
+                this.matrixRain = [];
+
+                for (let i = 0; i < 40; i++) {
+                    this.matrixRain.push({
+                        x: Math.random() * this.mapW,
+                        y: Math.random() * this.mapH,
+                        speed: 2 + Math.random() * 4,
+                        chars: "0101010101010111001"
+                    });
+                }
+
+                this.camera = new Camera();
+                this.player = new Player(100, 200);
+
+                this.input = {
+                    joystick: { active: false, x: 0, y: 0 },
+                    aim: { active: false, angle: 0 },
+                    shootPressed: false
+                };
+
+                this.initPlatforms();
+                this.setupEventListeners();
+                this.updateMenuUI();
+            }
+
+            initPlatforms() {
+                // Easier, wider and more accessible platforms
+                this.platforms = [
+                    { x: 0, y: 230, w: 1600, h: 40 },
+                    { x: 100, y: 165, w: 300, h: 16 },
+                    { x: 450, y: 125, w: 320, h: 16 },
+                    { x: 820, y: 170, w: 300, h: 16 },
+                    { x: 1180, y: 120, w: 320, h: 16 }
+                ];
+            }
+
+            startWave() {
+                this.enemies = [];
+                let enemyCount = 4 + this.wave; // Slower wave scaling
+                let isBossWave = (this.wave % 5 === 0);
+
+                if (isBossWave) {
+                    this.enemies.push(new Enemy(1400, 150, 'BOSS'));
+                    this.showAnnouncement(`WAVE ${this.wave} - GOJO SORCERER BOSS!`, '#00ffff');
+                    document.getElementById('bossHpContainer').classList.remove('hidden');
+                } else {
+                    this.showAnnouncement(`WAVE ${this.wave}`, '#facc15');
+                    document.getElementById('bossHpContainer').classList.add('hidden');
+                    for (let i = 0; i < enemyCount; i++) {
+                        let type = Math.random() < 0.25 ? 'RUNNER' : 'SOLDIER';
+                        let ex = 200 + Math.random() * 1300;
+                        this.enemies.push(new Enemy(ex, 100, type));
+                    }
+                }
+            }
+
+            showAnnouncement(text, color) {
+                let el = document.getElementById('announcementText');
+                el.innerText = text;
+                el.style.color = color;
+                el.style.transform = 'translate(-50%, -50%) scale(1)';
+                setTimeout(() => {
+                    el.style.transform = 'translate(-50%, -50%) scale(0)';
+                }, 2000);
+            }
+
+            setupEventListeners() {
+                window.addEventListener('resize', () => this.resizeCanvas());
+                this.resizeCanvas();
+
+                document.getElementById('menuPlayBtn').addEventListener('click', () => this.startGame());
+                document.getElementById('menuWeaponsBtn').addEventListener('click', () => this.openWeaponsModal());
+                document.getElementById('menuSettingsBtn').addEventListener('click', () => this.openSettingsModal());
+                document.getElementById('menuHelpBtn').addEventListener('click', () => this.openHelpModal());
+                
+                document.getElementById('closeWeaponsBtn').addEventListener('click', () => this.closeModals());
+                document.getElementById('closeSettingsBtn').addEventListener('click', () => this.closeModals());
+                document.getElementById('closeHelpBtn').addEventListener('click', () => this.closeModals());
+
+                document.getElementById('pauseBtn').addEventListener('click', () => this.pauseGame());
+                document.getElementById('resumeBtn').addEventListener('click', () => this.resumeGame());
+                document.getElementById('restartBtn').addEventListener('click', () => this.startGame());
+                document.getElementById('pauseSettingsBtn').addEventListener('click', () => this.openSettingsModal());
+                document.getElementById('quitBtn').addEventListener('click', () => this.returnToMenu());
+
+                document.getElementById('playAgainBtn').addEventListener('click', () => this.startGame());
+                document.getElementById('goMenuBtn').addEventListener('click', () => this.returnToMenu());
+                document.getElementById('continuePortraitBtn').addEventListener('click', () => {
+                    document.getElementById('rotateWarning').classList.add('hidden');
+                });
+
+                ['Sound', 'Music', 'Vibration', 'Shake', 'AutoReload'].forEach(setting => {
+                    let btn = document.getElementById(`setting${setting}`);
+                    if (!btn) return;
+                    btn.addEventListener('click', () => {
+                        let key = setting.charAt(0).toLowerCase() + setting.slice(1);
+                        let val = !this.storage.data.settings[key];
+                        this.storage.data.settings[key] = val;
+                        this.storage.save();
+                        btn.innerText = val ? 'ON' : 'OFF';
+                        btn.className = `pixel-btn px-3 py-1 text-[10px] ${val ? 'bg-green-600' : 'bg-red-600'}`;
+                        if (key === 'sound') this.audio.enabled = val;
+                    });
+                });
+
+                let aimBtn = document.getElementById('settingAimAssist');
+                if (aimBtn) {
+                    aimBtn.addEventListener('click', () => {
+                        let modes = ['OFF', 'LOW', 'MEDIUM', 'HIGH'];
+                        let current = this.storage.data.settings.aimAssist;
+                        let next = modes[(modes.indexOf(current) + 1) % modes.length];
+                        this.storage.data.settings.aimAssist = next;
+                        this.storage.save();
+                        aimBtn.innerText = next;
+                    });
+                }
+
+                // Virtual Joystick (Left side)
+                const joystickZone = document.getElementById('joystickZone');
+                const stick = document.getElementById('joystickStick');
+                let joystickTouchId = null;
+
+                if (joystickZone && stick) {
+                    joystickZone.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        if (joystickTouchId === null) {
+                            let touch = e.changedTouches[0];
+                            joystickTouchId = touch.identifier;
+                        }
+                    }, { passive: false });
+
+                    window.addEventListener('touchmove', (e) => {
+                        for (let t of e.changedTouches) {
+                            if (t.identifier === joystickTouchId) {
+                                let rect = joystickZone.getBoundingClientRect();
+                                let centerX = rect.left + rect.width / 2;
+                                let centerY = rect.top + rect.height / 2;
+                                let dx = t.clientX - centerX;
+                                let dy = t.clientY - centerY;
+                                let dist = Math.hypot(dx, dy);
+                                let maxDist = rect.width / 2;
+                                if (dist > maxDist) {
+                                    dx = (dx / dist) * maxDist;
+                                    dy = (dy / dist) * maxDist;
+                                }
+                                stick.style.transform = `translate(${dx}px, ${dy}px)`;
+                                this.input.joystick.x = dx / maxDist;
+                                this.input.joystick.y = dy / maxDist;
+                            }
+                        }
+                    }, { passive: false });
+
+                    window.addEventListener('touchend', (e) => {
+                        for (let t of e.changedTouches) {
+                            if (t.identifier === joystickTouchId) {
+                                joystickTouchId = null;
+                                stick.style.transform = `translate(0px, 0px)`;
+                                this.input.joystick.x = 0;
+                                this.input.joystick.y = 0;
+                            }
+                        }
+                    });
+                }
+
+                // Action Button Bindings
+                const bindButtonAction = (btnId, actionFn) => {
+                    const btn = document.getElementById(btnId);
+                    if (!btn) return;
+                    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); actionFn(); });
+                    btn.addEventListener('touchstart', (e) => { e.preventDefault(); actionFn(); }, { passive: false });
+                };
+
+                bindButtonAction('jumpBtn', () => {
+                    if (this.player.jump()) this.audio.playJump();
+                });
+
+                bindButtonAction('dashBtn', () => {
+                    if (this.player.dash()) this.audio.playDash();
+                });
+
+                bindButtonAction('reloadBtn', () => {
+                    this.player.startReload();
+                });
+
+                let shootInterval = null;
+                const shootBtn = document.getElementById('shootBtn');
+                if (shootBtn) {
+                    const startShoot = (e) => {
+                        e.preventDefault();
+                        this.input.shootPressed = true;
+                        this.shootWeapon();
+                        if (this.player.weaponData.auto && !shootInterval) {
+                            shootInterval = setInterval(() => {
+                                if (this.input.shootPressed) this.shootWeapon();
+                            }, this.player.weaponData.rate);
+                        }
+                    };
+                    const endShoot = (e) => {
+                        e.preventDefault();
+                        this.input.shootPressed = false;
+                        if (shootInterval) {
+                            clearInterval(shootInterval);
+                            shootInterval = null;
+                        }
+                    };
+
+                    shootBtn.addEventListener('pointerdown', startShoot);
+                    shootBtn.addEventListener('pointerup', endShoot);
+                    shootBtn.addEventListener('touchstart', startShoot, { passive: false });
+                    shootBtn.addEventListener('touchend', endShoot, { passive: false });
+                }
+
+                // Right side aiming touch zone
+                window.addEventListener('touchstart', (e) => {
+                    for (let t of e.changedTouches) {
+                        if (t.clientX > window.innerWidth / 2 && t.clientY < window.innerHeight - 200) {
+                            this.input.aim.active = true;
+                            this.updateAim(t.clientX, t.clientY);
+                        }
+                    }
+                });
+                window.addEventListener('touchmove', (e) => {
+                    for (let t of e.targetTouches) {
+                        if (t.clientX > window.innerWidth / 2 && this.input.aim.active) {
+                            this.updateAim(t.clientX, t.clientY);
+                        }
+                    }
+                });
+                window.addEventListener('touchend', (e) => {
+                    this.input.aim.active = false;
+                });
+            }
+
+            updateAim(clientX, clientY) {
+                let screenX = (clientX / window.innerWidth) * this.internalW;
+                let screenY = (clientY / window.innerHeight) * this.internalH;
+                let playerScreenX = this.player.x - this.camera.x + this.player.w / 2;
+                let playerScreenY = this.player.y - this.camera.y + this.player.h / 2;
+                this.player.aimAngle = Math.atan2(screenY - playerScreenY, screenX - playerScreenX);
+            }
+
+            shootWeapon() {
+                if (this.player.reloading || this.player.shootCooldown > 0) return;
+                if (this.player.ammo <= 0) {
+                    this.player.startReload();
+                    return;
+                }
+                this.player.ammo--;
+                this.player.shootCooldown = Math.floor(this.player.weaponData.rate / 16);
+                this.audio.playLaser();
+
+                let angle = this.player.aimAngle;
+                this.bullets.push(new Bullet(
+                    this.player.x + 10, 
+                    this.player.y + 10, 
+                    angle, 
+                    this.player.weaponData.damage, 
+                    this.player.weaponData.speed, 
+                    false, 
+                    this.player.weaponData.isLaser, 
+                    this.player.weaponData.isHackerGamer
+                ));
+
+                if (this.player.ammo === 0 && this.storage.data.settings.autoReload) {
+                    this.player.startReload();
+                }
+            }
+
+            resizeCanvas() {
+                let w = window.innerWidth;
+                let h = window.innerHeight;
+                this.canvas.width = this.internalW;
+                this.canvas.height = this.internalH;
+                if (w < h) {
+                    let warningEl = document.getElementById('rotateWarning');
+                    if (warningEl) warningEl.classList.remove('hidden');
+                } else {
+                    let warningEl = document.getElementById('rotateWarning');
+                    if (warningEl) warningEl.classList.add('hidden');
+                }
+            }
+
+            startGame() {
+                this.closeModals();
+                document.getElementById('mainMenu').classList.add('hidden');
+                document.getElementById('topHud').classList.remove('hidden');
+                document.getElementById('gameControls').classList.remove('hidden');
+
+                this.state = 'PLAYING';
+                this.score = 0;
+                this.wave = 1;
+                this.kills = 0;
+                this.coinsEarned = 0;
+                this.combo = 0;
+                this.player = new Player(100, 150);
+                
+                let weaponKey = this.storage.get('selectedWeapon');
+                this.player.currentWeaponKey = weaponKey;
+                this.player.weaponData = { ...WEAPONS_DB[weaponKey] };
+                this.player.ammo = this.player.weaponData.mag;
+
+                this.startWave();
+            }
+
+            pauseGame() {
+                this.state = 'PAUSED';
+                document.getElementById('pauseModal').classList.remove('hidden');
+            }
+
+            resumeGame() {
+                this.state = 'PLAYING';
+                document.getElementById('pauseModal').classList.add('hidden');
+            }
+
+            returnToMenu() {
+                this.closeModals();
+                document.getElementById('topHud').classList.add('hidden');
+                document.getElementById('gameControls').classList.add('hidden');
+                document.getElementById('mainMenu').classList.remove('hidden');
+                this.state = 'MENU';
+                this.updateMenuUI();
+            }
+
+            gameOver() {
+                this.state = 'GAMEOVER';
+                document.getElementById('topHud').classList.add('hidden');
+                document.getElementById('gameControls').classList.add('hidden');
+                document.getElementById('gameOverModal').classList.remove('hidden');
+
+                let best = this.storage.get('bestScore');
+                if (this.score > best) {
+                    this.storage.set('bestScore', this.score);
+                }
+                document.getElementById('goScoreText').innerText = this.score;
+                document.getElementById('goWaveText').innerText = this.wave;
+                document.getElementById('goKillsText').innerText = this.kills;
+                document.getElementById('goBestText').innerText = Math.max(best, this.score);
+                document.getElementById('goCoinsText').innerText = `+${this.coinsEarned}`;
+            }
+
+            closeModals() {
+                ['weaponsModal', 'settingsModal', 'helpModal', 'pauseModal', 'gameOverModal'].forEach(id => {
+                    let el = document.getElementById(id);
+                    if (el) el.classList.add('hidden');
+                });
+            }
+
+            openWeaponsModal() {
+                let container = document.getElementById('weaponsListContainer');
+                if (!container) return;
+                container.innerHTML = '';
+                let unlocked = this.storage.get('unlockedWeapons');
+                let selected = this.storage.get('selectedWeapon');
+
+                for (let key in WEAPONS_DB) {
+                    let w = WEAPONS_DB[key];
+                    let isUnlocked = unlocked.includes(key);
+                    let isSelected = selected === key;
+
+                    let div = document.createElement('div');
+                    div.className = `flex justify-between items-center bg-gray-900 p-3 rounded border ${isSelected ? 'border-cyan-400' : 'border-gray-700'}`;
+                    div.innerHTML = `
+                        <div>
+                            <div class="text-xs text-cyan-400 font-bold">${w.name}</div>
+                            <div class="text-[9px] text-gray-400 mt-1">Dmg: ${w.damage} | Mag: ${w.mag}</div>
+                        </div>
+                        <div>
+                            ${isSelected ? '<span class="text-[10px] text-green-400">EQUIPPED</span>' : 
+                              isUnlocked ? `<button class="pixel-btn bg-blue-600 px-3 py-1 text-[9px] select-w-btn" data-key="${key}">EQUIP</button>` :
+                              `<span class="text-[9px] text-gray-500">${w.cost} COINS</span>`}
+                        </div>
+                    `;
+                    container.appendChild(div);
+                }
+
+                container.querySelectorAll('.select-w-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        let key = e.target.getAttribute('data-key');
+                        this.storage.set('selectedWeapon', key);
+                        this.openWeaponsModal();
+                    });
+                });
+
+                document.getElementById('weaponsModal').classList.remove('hidden');
+            }
+
+            openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
+            openHelpModal() { document.getElementById('helpModal').classList.remove('hidden'); }
+
+            updateMenuUI() {
+                let coinsEl = document.getElementById('menuCoinsText');
+                let bestEl = document.getElementById('menuBestScoreText');
+                if (coinsEl) coinsEl.innerText = this.storage.get('coins');
+                if (bestEl) bestEl.innerText = this.storage.get('bestScore');
+            }
+
+            update() {
+                if (this.state !== 'PLAYING') return;
+
+                this.player.update(this.input, this.platforms, this.mapW, this.mapH);
+                if (this.player.hp <= 0) {
+                    this.gameOver();
+                    return;
+                }
+
+                this.camera.update(this.player.x, this.player.y, this.mapW, this.mapH, this.internalW, this.internalH);
+
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    let b = this.bullets[i];
+                    b.update(this.mapW, this.mapH);
+                    if (!b.active) {
+                        this.bullets.splice(i, 1);
+                        continue;
+                    }
+
+                    if (!b.isEnemy) {
+                        for (let j = this.enemies.length - 1; j >= 0; j--) {
+                            let e = this.enemies[j];
+                            if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+                                e.hp -= b.damage;
+                                e.flashTimer = 6;
+                                b.active = false;
+                                if (e.hp <= 0) {
+                                    this.kills++;
+                                    this.score += e.scoreVal;
+                                    this.coinsEarned += 15;
+                                    if (e.type === 'BOSS') {
+                                        let bossContainer = document.getElementById('bossHpContainer');
+                                        if (bossContainer) bossContainer.classList.add('hidden');
+                                    }
+                                    this.enemies.splice(j, 1);
+                                    this.audio.playExplosion();
+                                }
+                                break;
+                            }
+                        }
+                    } else {
+                        if (this.player.invulnerableTimer === 0 &&
+                            b.x > this.player.x && b.x < this.player.x + this.player.w &&
+                            b.y > this.player.y && b.y < this.player.y + this.player.h) {
+                            this.player.hp -= b.damage;
+                            this.player.invulnerableTimer = 30;
+                            b.active = false;
+                            this.audio.playHit();
+                        }
+                    }
+                }
+
+                for (let e of this.enemies) {
+                    e.update(this.player, this.platforms, this.mapW, this.mapH, this.bullets);
+                    if (e.type === 'BOSS') {
+                        let pct = Math.max(0, (e.hp / e.maxHp) * 100);
+                        let bossBar = document.getElementById('bossHpBar');
+                        if (bossBar) bossBar.style.width = `${pct}%`;
+                    }
+                }
+
+                if (this.enemies.length === 0) {
+                    this.wave++;
+                    this.score += 500;
+                    this.startWave();
+                }
+
+                let hpBar = document.getElementById('hpBar');
+                if (hpBar) hpBar.style.width = `${Math.max(0, (this.player.hp / this.player.maxHp) * 100)}%`;
+                let hpText = document.getElementById('hpText');
+                if (hpText) hpText.innerText = Math.max(0, Math.floor(this.player.hp));
+                let armorBar = document.getElementById('armorBar');
+                if (armorBar) armorBar.style.width = `${Math.max(0, (this.player.armor / this.player.maxArmor) * 100)}%`;
+                let armorText = document.getElementById('armorText');
+                if (armorText) armorText.innerText = Math.floor(this.player.armor);
+                let staminaBar = document.getElementById('staminaBar');
+                if (staminaBar) staminaBar.style.width = `${Math.max(0, this.player.stamina)}%`;
+                let waveDisplay = document.getElementById('waveDisplay');
+                if (waveDisplay) waveDisplay.innerText = `WAVE ${this.wave}`;
+                let scoreText = document.getElementById('scoreText');
+                if (scoreText) scoreText.innerText = String(this.score).padStart(6, '0');
+                let weaponNameText = document.getElementById('weaponNameText');
+                if (weaponNameText) weaponNameText.innerText = this.player.weaponData.name;
+                let ammoCountText = document.getElementById('ammoCountText');
+                if (ammoCountText) ammoCountText.innerText = `${this.player.ammo} / ${this.player.weaponData.mag}`;
+            }
+
+            draw() {
+                this.ctx.save();
+                this.ctx.imageSmoothingEnabled = false;
+                this.ctx.fillStyle = '#020617';
+                this.ctx.fillRect(0, 0, this.internalW, this.internalH);
+
+                this.ctx.save();
+                this.ctx.translate(-Math.floor(this.camera.x), -Math.floor(this.camera.y));
+
+                // Matrix Hacker Background Rain
+                this.ctx.fillStyle = '#00ff66';
+                this.ctx.font = '10px monospace';
+                for (let col of this.matrixRain) {
+                    col.y += col.speed;
+                    if (col.y > this.mapH) col.y = 0;
+                    this.ctx.fillText(col.chars[0], col.x, col.y);
+                }
+
+                // Platforms & Cyber Barriers
+                for (let p of this.platforms) {
+                    this.ctx.fillStyle = '#090d16';
+                    this.ctx.fillRect(p.x, p.y, p.w, p.h);
+                    this.ctx.strokeStyle = '#00ffff';
+                    this.ctx.shadowColor = '#00ffff';
+                    this.ctx.shadowBlur = 6;
+                    this.ctx.strokeRect(p.x, p.y, p.w, p.h);
+                }
+
+                for (let e of this.enemies) e.draw(this.ctx);
+                this.player.draw(this.ctx);
+                for (let b of this.bullets) b.draw(this.ctx);
+
+                this.ctx.restore();
+                this.ctx.restore();
+            }
+
+            loop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        }
+
+        window.onload = function() {
+            window.gameInstance = new Game();
+            window.gameInstance.loop();
+        };
+    </script>
+</body>
+</html>
